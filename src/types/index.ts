@@ -1,24 +1,25 @@
-export type Message = {
-  id: string
-  role: 'user' | 'bot'
-  text: string
+export type NewsItem = {
+  headline: string
+  url: string
+  source: string
+  datetime: number
+  image: string
+  summary: string
 }
 
-export type FinnhubQuote = {
-  c: number   // current price
-  h: number   // high
-  l: number   // low
-  o: number   // open
-  pc: number  // previous close
-  t: number   // timestamp unix
-}
-
-export type FinnhubProfile = {
-  name: string
+export type StockData = {
   ticker: string
-  exchange: string
-  marketCapitalization: number
-  currency: string
-  country: string
-  finnhubIndustry: string
+  name: string | null
+  exchange: string | null
+  logo: string | null
+  chart: { timestamps: number[]; closes: number[] } | null
+  news: NewsItem[]
+  quote: { c: number; d: number; dp: number } | null
+}
+
+export type Conversation = {
+  id: string
+  userText: string
+  botText: string | null  // null mientras el bot está respondiendo
+  stockData?: StockData | null
 }

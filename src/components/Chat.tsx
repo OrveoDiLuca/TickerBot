@@ -1,19 +1,44 @@
 import { useState, useRef, useEffect } from "react"
-import type { Message } from "../types"
+import type { Conversation, StockData } from "../types"
 import { v4 as uuidv4 } from 'uuid'
 import { BotIcon, SendIcon } from "../helpers/Icons"
-import { dataAgent } from "../services/dataAgent"
+import StockCard from "./StockCard"
+
+
+async function callBackend(message: string): Promise<{ botText: string; stockData: StockData | null }> {
+  const res = await fetch('http://localhost:8000/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  })
+  if (!res.ok) throw new Error('Backend error')
+  const data = await res.json()
+
+  const stockData: StockData | null = data.ticker
+    ? {
+        ticker: data.ticker,
+        name: data.name ?? null,
+        exchange: data.exchange ?? null,
+        logo: data.logo ?? null,
+        chart: data.chart ?? null,
+        news: data.news ?? [],
+        quote: data.quote ?? null,
+      }
+    : null
+
+  return { botText: data.reply, stockData }
+}
 
 
 const Chat = () => {
-  const [message, setMessage] = useState<Message[]>([])
+  const [conversations, setConversations] = useState<Conversation[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [message, isLoading])
+  }, [conversations, isLoading])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputMessage(e.target.value)
@@ -23,13 +48,16 @@ const Chat = () => {
     const trimmedMessage = inputMessage.trim()
     if (!trimmedMessage || isLoading) return
 
-    setMessage((prev) => [...prev, { id: uuidv4(), role: 'user', text: trimmedMessage }])
+    const id = uuidv4()
+    setConversations((prev) => [...prev, { id, userText: trimmedMessage, botText: null, stockData: null }])
     setInputMessage('')
     setIsLoading(true)
 
     try {
-      const botText = await dataAgent(trimmedMessage)
-      setMessage((prev) => [...prev, { id: uuidv4(), role: 'bot', text: botText }])
+      const { botText, stockData } = await callBackend(trimmedMessage)
+      setConversations((prev) =>
+        prev.map((conv) => conv.id === id ? { ...conv, botText, stockData } : conv)
+      )
     } finally {
       setIsLoading(false)
     }
@@ -55,7 +83,7 @@ const Chat = () => {
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
 
         {/* Estado vacío */}
-        {message.length === 0 && !isLoading && (
+        {conversations.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center h-full gap-3 opacity-40">
             <svg className="w-10 h-10 fill-current text-slate-500" viewBox="0 0 24 24">
               <path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z" />
@@ -64,45 +92,52 @@ const Chat = () => {
           </div>
         )}
 
-        {/* Renderizado dinámico de mensajes */}
-        {message.map((msg) =>
-          msg.role === 'user' ? (
-            // Mensaje del usuario (derecha)
-            <div key={msg.id} className="flex justify-end items-end gap-3">
+        {/* Conversaciones */}
+        {conversations.map((conv) => (
+          <div key={conv.id} className="flex flex-col gap-4">
+            {/* Mensaje del usuario */}
+            <div className="flex justify-end items-end gap-3">
               <div className="flex flex-col items-end gap-1 max-w-[70%]">
                 <div
                   className="text-white px-5 py-3 rounded-2xl rounded-tr-sm text-sm leading-relaxed shadow-lg"
                   style={{ backgroundColor: '#2b6cee' }}
                 >
-                  {msg.text}
+                  {conv.userText}
                 </div>
               </div>
             </div>
-          ) : (
-            // Mensaje del bot (izquierda)
-            <div key={msg.id} className="flex items-start gap-3">
-              <div
-                className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                style={{
-                  backgroundColor: 'rgba(43,108,238,0.15)',
-                  border: '1px solid rgba(43,108,238,0.25)',
-                }}
-              >
-                <BotIcon />
+
+            {/* Respuesta del bot */}
+            {conv.botText !== null && (
+              <div className="flex items-start gap-3">
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                  style={{
+                    backgroundColor: 'rgba(43,108,238,0.15)',
+                    border: '1px solid rgba(43,108,238,0.25)',
+                  }}
+                >
+                  <BotIcon />
+                </div>
+                <div className="flex flex-col max-w-[75%]">
+                  <div
+                    className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm leading-relaxed"
+                    style={{
+                      backgroundColor: '#1a2436',
+                      border: '1px solid #222f47',
+                      color: '#94a3b8',
+                    }}
+                  >
+                    {conv.botText}
+                  </div>
+                  {conv.stockData && (
+                    <StockCard data={conv.stockData} />
+                  )}
+                </div>
               </div>
-              <div
-                className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm leading-relaxed max-w-[75%]"
-                style={{
-                  backgroundColor: '#1a2436',
-                  border: '1px solid #222f47',
-                  color: '#94a3b8',
-                }}
-              >
-                {msg.text}
-              </div>
-            </div>
-          )
-        )}
+            )}
+          </div>
+        ))}
 
         {/* Typing indicator */}
         {isLoading && (

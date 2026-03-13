@@ -97,11 +97,10 @@ export async function dataAgent(userMessage: string): Promise<string> {
       })
     }
 
-    // Turn 2: send tool results back
+    // Turn 2: send tool results back (no tools — solo generar texto)
     const finalResponse = await client.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       messages,
-      tools,
     })
 
     return finalResponse.choices[0].message.content ?? ''
