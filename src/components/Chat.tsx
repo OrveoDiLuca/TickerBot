@@ -1,22 +1,44 @@
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import type { Message } from "../types"
 import { v4 as uuidv4 } from 'uuid'
+import { BotIcon, SendIcon } from "../helpers/Icons"
+import { dataAgent } from "../services/dataAgent"
 
 
 const Chat = () => {
   const [message, setMessage] = useState<Message[]>([])
   const [inputMessage, setInputMessage] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [message, isLoading])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputMessage(e.target.value)
   }
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmedMessage = inputMessage.trim()
-    if(!trimmedMessage) return //No envia mensaje si está vacío
-    setMessage((prev) => [...prev, {id: uuidv4(), role: 'user', text: trimmedMessage}])
+    if (!trimmedMessage || isLoading) return
+
+    setMessage((prev) => [...prev, { id: uuidv4(), role: 'user', text: trimmedMessage }])
     setInputMessage('')
+    setIsLoading(true)
+
+    try {
+      const botText = await dataAgent(trimmedMessage)
+      setMessage((prev) => [...prev, { id: uuidv4(), role: 'bot', text: botText }])
+    } finally {
+      setIsLoading(false)
+    }
   }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') handleSend()
+  }
+
   return (
     <div
       className="flex-1 flex flex-col h-full rounded-2xl overflow-hidden"
@@ -32,8 +54,8 @@ const Chat = () => {
       {/* Área de mensajes */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
 
-        {/* Estado vacío, si el estado se encuentra vacío, pues se mostrará el siguiente mensaje*/} 
-        {message.length === 0 && (
+        {/* Estado vacío */}
+        {message.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center h-full gap-3 opacity-40">
             <svg className="w-10 h-10 fill-current text-slate-500" viewBox="0 0 24 24">
               <path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z" />
@@ -41,7 +63,8 @@ const Chat = () => {
             <p className="text-slate-500 text-sm">Pregunta sobre cualquier acción o empresa</p>
           </div>
         )}
-      {/* Renderizado dinámico de mensajes */}
+
+        {/* Renderizado dinámico de mensajes */}
         {message.map((msg) =>
           msg.role === 'user' ? (
             // Mensaje del usuario (derecha)
@@ -80,6 +103,33 @@ const Chat = () => {
             </div>
           )
         )}
+
+        {/* Typing indicator */}
+        {isLoading && (
+          <div className="flex items-start gap-3">
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+              style={{
+                backgroundColor: 'rgba(43,108,238,0.15)',
+                border: '1px solid rgba(43,108,238,0.25)',
+              }}
+            >
+              <BotIcon />
+            </div>
+            <div
+              className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm animate-pulse"
+              style={{
+                backgroundColor: '#1a2436',
+                border: '1px solid #222f47',
+                color: '#94a3b8',
+              }}
+            >
+              ...
+            </div>
+          </div>
+        )}
+
+        <div ref={bottomRef} />
       </div>
 
       {/* Área de input */}
@@ -95,51 +145,25 @@ const Chat = () => {
             type="text"
             value={inputMessage}
             onChange={handleInputChange}
-            // onKeyDown={handleKeyDown}
-            placeholder="Ask about stocks, earnings, or market trends..."
+            onKeyDown={handleKeyDown}
+            placeholder="Ask about stocks, earnings, or market trende. E.g., 'What is the current stock price of AAPL?'"
             className="flex-1 bg-transparent border-none outline-none text-sm py-3"
             style={{ color: '#e2e8f0' }}
           />
           <div className="flex items-center gap-2 ml-2">
             <button
               onClick={handleSend}
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-lg transition-opacity hover:opacity-90 hover:cursor-pointer"
-              style={{ backgroundColor: inputMessage.trim() ? '#2b6cee' : '#1e2a40' }}
+              disabled={isLoading}
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-lg transition-opacity hover:opacity-90 hover:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ backgroundColor: inputMessage.trim() && !isLoading ? '#2b6cee' : '#1e2a40' }}
             >
               <SendIcon />
             </button>
           </div>
         </div>
 
-        {/* Sugerencias rápidas */}
-        <div className="mt-3 flex flex-wrap justify-center gap-2">
-          {['¿Cómo va Apple hoy?', 'Earnings de NVDA', 'Noticias de Tesla'].map((s) => (
-            <button
-              key={s}
-              // onClick={() => handleSuggestion(s)}
-              className="px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors hover:text-white"
-              style={{ border: '1px solid #222f47', color: '#64748b' }}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   )
 }
-
-// ----- Íconos -----
-const BotIcon = () => (
-  <svg className="w-5 h-5 fill-current" style={{ color: '#2b6cee' }} viewBox="0 0 24 24">
-    <path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-4c1.66 0 3-1.34 3-3s-1.34-3-3-3zM7 17l1.5-3h7L17 17H7zm1-6a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm6 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3z" />
-  </svg>
-)
-
-const SendIcon = () => (
-  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-  </svg>
-)
-
 export default Chat
