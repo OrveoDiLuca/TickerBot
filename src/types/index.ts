@@ -23,3 +23,9 @@ export type Conversation = {
   botText: string | null  // null mientras el bot está respondiendo
   stockData?: StockData | null
 }
+
+export type ChartPoint = {
+  time: string
+  price: number
+  ts: number
+}

@@ -1,44 +1,21 @@
 import { useState, useRef, useEffect } from "react"
-import type { Conversation, StockData } from "../types"
+import type { Conversation } from "../types"
 import { v4 as uuidv4 } from 'uuid'
 import { BotIcon, SendIcon } from "../helpers/Icons"
 import StockCard from "./StockCard"
-
-
-async function callBackend(message: string): Promise<{ botText: string; stockData: StockData | null }> {
-  const res = await fetch('http://localhost:8000/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
-  })
-  if (!res.ok) throw new Error('Backend error')
-  const data = await res.json()
-
-  const stockData: StockData | null = data.ticker
-    ? {
-        ticker: data.ticker,
-        name: data.name ?? null,
-        exchange: data.exchange ?? null,
-        logo: data.logo ?? null,
-        chart: data.chart ?? null,
-        news: data.news ?? [],
-        quote: data.quote ?? null,
-      }
-    : null
-
-  return { botText: data.reply, stockData }
-}
+import { callBackend } from "../helpers/functions"
+ 
 
 
 const Chat = () => {
-  const [conversations, setConversations] = useState<Conversation[]>([])
-  const [inputMessage, setInputMessage] = useState('')
+  const [conversations, setConversations] = useState<Conversation[]>([]) //Estado donde se almacenan las conversaciones entre el usuario y el bot. Cada conversación incluye el texto del usuario, la respuesta del bot y los datos de acciones relacionados (si los hay).
+  const [inputMessage, setInputMessage] = useState('') //Estado para controlar el valor del campo de entrada del usuario. 
   const [isLoading, setIsLoading] = useState(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null) //Referencia a un elemento div al final de la lista de conversaciones. Se utiliza para desplazar automáticamente la vista hacia abajo cuando se agregan nuevas conversaciones o mientras el bot está "escribiendo" una respuesta.
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [conversations, isLoading])
+  }, [conversations, isLoading]) //Este useEffect se ejecuta cada vez que cambian las conversaciones o el estado de carga. Su función es basicamente desplazar la vista hacia el elemento referenciado por el bottonRef. 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputMessage(e.target.value)
@@ -54,7 +31,7 @@ const Chat = () => {
     setIsLoading(true)
 
     try {
-      const { botText, stockData } = await callBackend(trimmedMessage)
+      const { botText, stockData } = await callBackend(trimmedMessage) //Esta linea aplica un destructuring al mensaje del usuario, y lo divide en el mensaje del bot y el stock que solicita el usuario. 
       setConversations((prev) =>
         prev.map((conv) => conv.id === id ? { ...conv, botText, stockData } : conv)
       )

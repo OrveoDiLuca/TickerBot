@@ -8,26 +8,9 @@ import {
   CartesianGrid,
 } from 'recharts'
 import type { StockData } from '../types'
-
-interface ChartPoint {
-  time: string
-  price: number
-  ts: number
-}
-
-function buildChartData(timestamps: number[], closes: number[]): ChartPoint[] {
-  return timestamps.map((ts, i) => {
-    const d = new Date(ts * 1000)
-    const label = d.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })
-    return { time: label, price: closes[i], ts }
-  })
-}
+import HeaderCard from './HeaderCard'
+import { buildChartData } from '../helpers/functions'
+import type { ChartPoint } from '../types'
 
 function CustomTooltip({
   active,
@@ -115,7 +98,7 @@ function SuperChart({
 }
 
 export default function StockCard({ data }: { data: StockData }) {
-  const { ticker, name, exchange, logo, chart, news, quote } = data
+  const { ticker, name, exchange, logo, chart, news, quote } = data //Aplicamos un destructuring para acceder a las propiedades del objeto data de tipo StockData. 
   const isPositive = (quote?.dp ?? 0) >= 0
   const changeColor = isPositive ? '#22c55e' : '#ef4444'
 
@@ -125,47 +108,15 @@ export default function StockCard({ data }: { data: StockData }) {
       style={{ backgroundColor: '#101622', border: '1px solid #222f47' }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-5 pb-4">
-        <div className="flex items-center gap-3">
-          {logo ? (
-            <img
-              src={logo}
-              alt={name ?? ticker}
-              className="w-12 h-12 rounded-xl object-contain"
-              style={{ backgroundColor: '#fff', padding: '5px' }}
-            />
-          ) : (
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold"
-              style={{ backgroundColor: 'rgba(43,108,238,0.2)', color: '#2b6cee' }}
-            >
-              {ticker.slice(0, 2)}
-            </div>
-          )}
-          <div>
-            <div className="text-white font-semibold text-base leading-tight">
-              {name ?? ticker}
-            </div>
-            <div className="text-xs mt-0.5" style={{ color: '#64748b' }}>
-              {ticker}{exchange ? ` · ${exchange}` : ''}
-            </div>
-          </div>
-        </div>
-
-        {quote && (
-          <div className="text-right">
-            <div className="text-white font-bold text-2xl">${quote.c.toFixed(2)}</div>
-            <div className="flex items-center justify-end gap-1 mt-0.5">
-              <span className="text-sm font-semibold" style={{ color: changeColor }}>
-                {isPositive ? '▲' : '▼'} {Math.abs(quote.dp).toFixed(2)}%
-              </span>
-              <span className="text-sm" style={{ color: '#64748b' }}>
-                ({isPositive ? '+' : ''}{quote.d.toFixed(2)})
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
+      <HeaderCard
+        ticker={ticker}
+        name={name}
+        exchange={exchange}
+        logo={logo}
+        quote={quote}
+        isPositive={isPositive}
+        changeColor={changeColor}
+      />
 
       {/* Superchart */}
       {chart && chart.closes.length > 1 && (

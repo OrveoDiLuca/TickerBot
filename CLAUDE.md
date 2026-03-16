@@ -15,7 +15,7 @@ No test framework is configured.
 
 ## Architecture
 
-**TickerBot** is a financial analysis chatbot UI — React/TypeScript frontend with no backend integration yet. The bot sends and displays messages but does not call any external API.
+**TickerBot** is a multi-agent financial analysis chatbot — React/TypeScript frontend, FastAPI Python backend, and an orchestrated AI agent system.
 
 ### Layout
 
