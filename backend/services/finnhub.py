@@ -6,7 +6,7 @@ BASE_URL = "https://finnhub.io/api/v1"
 
 
 async def get_stock_quote(symbol: str) -> dict:
-    api_key = os.getenv("FINNHUB_API_KEY")
+    api_key = os.getenv("FINNHUB_API_KEY")#Obtiene el valor de la variable de entorno, que se comunica con FINNHUB_API_KEY. 
     async with httpx.AsyncClient() as client:
         r = await client.get(
             f"{BASE_URL}/quote",
@@ -20,6 +20,7 @@ async def get_stock_quote(symbol: str) -> dict:
 
 
 async def get_company_profile(symbol: str) -> dict:
+    #Obtiene la informacion de la empresa, osea el nombre, el logo, la industria, etc.
     api_key = os.getenv("FINNHUB_API_KEY")
     async with httpx.AsyncClient() as client:
         r = await client.get(
@@ -35,6 +36,7 @@ async def get_company_profile(symbol: str) -> dict:
 
 def get_stock_candles(symbol: str) -> dict | None:
     try:
+        #Obtiene el historial de los precios de los ultimos 3 meses. 
         import yfinance as yf
         hist = yf.Ticker(symbol.upper()).history(period="3mo", interval="1d")
         if hist.empty:
@@ -47,6 +49,7 @@ def get_stock_candles(symbol: str) -> dict | None:
 
 
 async def get_company_news(symbol: str) -> list:
+    #Obtiene las noticias de la empresa. 
     api_key = os.getenv("FINNHUB_API_KEY")
     to_date = datetime.now().strftime("%Y-%m-%d")
     from_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")

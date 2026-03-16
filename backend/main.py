@@ -15,7 +15,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 class ChatRequest(BaseModel):
     message: str
 
@@ -51,7 +50,7 @@ class ChatResponse(BaseModel):
     logo: str | None = None
 
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chat", response_model=ChatResponse) #Registra el endpoint /chat que es el endpoint principal de la aplicacion. 
 async def chat(body: ChatRequest):
     if not body.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
@@ -70,7 +69,6 @@ async def chat(body: ChatRequest):
         exchange=result.get("exchange"),
         logo=result.get("logo"),
     )
-
 
 @app.get("/health")
 def health():

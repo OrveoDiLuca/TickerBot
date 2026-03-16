@@ -4,6 +4,8 @@ import asyncio
 from groq import AsyncGroq
 from .finnhub import get_stock_quote, get_company_profile, get_stock_candles, get_company_news
 
+
+#Gracias esto el modelo de AI sabe que debe de responder y de que manera. 
 SYSTEM_PROMPT = (
     "Eres TickerBot, un asistente de datos financieros. "
     "Cuando el usuario pregunte sobre una acción o empresa, usa las herramientas "
@@ -12,7 +14,7 @@ SYSTEM_PROMPT = (
     "esa empresa y que industria pertenece."
 )
 
-TOOLS = [
+TOOLS = [ #Arreglo que le describe al modelo de AI que funciones tiene disponible para ejecutar. 
     {
         "type": "function",
         "function": {
@@ -43,7 +45,6 @@ TOOLS = [
     },
 ]
 
-
 async def execute_tool(name: str, args: dict) -> str:
     try:
         if name == "get_stock_quote":
@@ -54,7 +55,6 @@ async def execute_tool(name: str, args: dict) -> str:
     except Exception as e:
         return json.dumps({"error": str(e)})
 
-
 async def data_agent(user_message: str) -> dict:
     client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
 
@@ -63,6 +63,7 @@ async def data_agent(user_message: str) -> dict:
         {"role": "user", "content": user_message},
     ]
 
+    #Llama a groq pidiendo los datos necesarios.
     response = await client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=messages,
@@ -94,6 +95,7 @@ async def data_agent(user_message: str) -> dict:
             "content": result,
         })
 
+    #Llamada a groq para obtener la respuesta final del modelo de AI, esta vez con los resultados de las herramientas.
     final = await client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=messages,
