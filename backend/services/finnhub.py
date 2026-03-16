@@ -48,6 +48,30 @@ def get_stock_candles(symbol: str) -> dict | None:
         return None
 
 
+async def search_symbol(query: str) -> str | None:
+    """Busca el ticker correcto dado el nombre de una empresa o un ticker parcial."""
+    api_key = os.getenv("FINNHUB_API_KEY")
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            f"{BASE_URL}/search",
+            params={"q": query, "token": api_key},
+        )
+        r.raise_for_status()
+        data = r.json()
+        results = data.get("result", [])
+        # Prioriza coincidencia exacta de símbolo, luego el primer resultado de tipo "Common Stock"
+        query_upper = query.upper()
+        for item in results:
+            if item.get("symbol", "").upper() == query_upper and item.get("type") == "Common Stock":
+                return item["symbol"]
+        for item in results:
+            if item.get("type") == "Common Stock":
+                return item["symbol"]
+        if results:
+            return results[0].get("symbol")
+        return None
+
+
 async def get_company_news(symbol: str) -> list:
     #Obtiene las noticias de la empresa. 
     api_key = os.getenv("FINNHUB_API_KEY")

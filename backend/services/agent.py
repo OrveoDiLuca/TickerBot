@@ -2,126 +2,106 @@ import json
 import os
 import asyncio
 from groq import AsyncGroq
-from .finnhub import get_stock_quote, get_company_profile, get_stock_candles, get_company_news
+from .finnhub import get_stock_quote, get_company_profile, get_stock_candles, get_company_news, search_symbol
+
+MODEL = "llama-3.3-70b-versatile"
 
 
-#Gracias esto el modelo de AI sabe que debe de responder y de que manera. 
-SYSTEM_PROMPT = (
-    "Eres TickerBot, un asistente de datos financieros. "
-    "Cuando el usuario pregunte sobre una acción o empresa, usa las herramientas "
-    "disponibles para obtener datos en tiempo real. Responde en el mismo idioma del usuario. "
-    "Cuando tengas el perfil de la empresa, siempre debes de mencionar en que bolsa cotiza "
-    "esa empresa y que industria pertenece."
-)
-
-TOOLS = [ #Arreglo que le describe al modelo de AI que funciones tiene disponible para ejecutar. 
-    {
-        "type": "function",
-        "function": {
-            "name": "get_stock_quote",
-            "description": "Get the real-time stock quote for a given ticker symbol",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "symbol": {"type": "string", "description": "e.g. AAPL, TSLA"},
-                },
-                "required": ["symbol"],
+async def extract_ticker(client: AsyncGroq, user_message: str) -> str | None:
+    """Le pide al modelo que extraiga el ticker o nombre de empresa del mensaje del usuario."""
+    response = await client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Extrae el nombre de empresa o ticker del mensaje del usuario. "
+                    "Responde ÚNICAMENTE con un JSON como: {\"query\": \"Apple\"} o {\"query\": \"AAPL\"}. "
+                    "Si no hay ninguna empresa o ticker mencionado, responde: {\"query\": null}. "
+                    "Sin explicaciones, solo el JSON."
+                ),
             },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_company_profile",
-            "description": "Get company profile information for a given ticker symbol",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "symbol": {"type": "string", "description": "e.g. AAPL, TSLA"},
-                },
-                "required": ["symbol"],
-            },
-        },
-    },
-]
-
-async def execute_tool(name: str, args: dict) -> str:
+            {"role": "user", "content": user_message},
+        ],
+        temperature=0,
+        max_tokens=30,
+        response_format={"type": "json_object"},
+    )
     try:
-        if name == "get_stock_quote":
-            return json.dumps(await get_stock_quote(args["symbol"]))
-        elif name == "get_company_profile":
-            return json.dumps(await get_company_profile(args["symbol"]))
-        raise ValueError(f"Unknown tool: {name}")
-    except Exception as e:
-        return json.dumps({"error": str(e)})
+        data = json.loads(response.choices[0].message.content or "{}")
+        return data.get("query")
+    except Exception:
+        return None
+
+
+async def generate_reply(client: AsyncGroq, user_message: str, ticker: str, quote: dict, profile: dict) -> str:
+    """Genera una respuesta en lenguaje natural con los datos obtenidos."""
+    context = f"Ticker: {ticker}\n"
+    if profile:
+        context += f"Empresa: {profile.get('name')}, Bolsa: {profile.get('exchange')}, Industria: {profile.get('finnhubIndustry')}\n"
+    if quote:
+        context += f"Precio actual: ${quote.get('c')}, Cambio: {quote.get('d')} ({quote.get('dp')}%)\n"
+
+    response = await client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Eres TickerBot, un asistente de datos financieros. "
+                    "Responde en el mismo idioma del usuario usando los datos proporcionados. "
+                    "Menciona el precio actual, el cambio del día, la bolsa y la industria."
+                ),
+            },
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": f"Datos obtenidos:\n{context}"},
+            {"role": "user", "content": "Con esos datos, responde al usuario de forma clara y concisa."},
+        ],
+        temperature=0.3,
+        max_tokens=300,
+    )
+    return response.choices[0].message.content or ""
+
 
 async def data_agent(user_message: str) -> dict:
     client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
 
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_message},
-    ]
+    # Paso 1: extraer el ticker/empresa del mensaje
+    query = await extract_ticker(client, user_message)
+    if not query:
+        return {
+            "reply": "No identifiqué ninguna empresa o ticker en tu mensaje. ¿Puedes especificar cuál acción te interesa?",
+            "ticker": None, "chart": None, "news": [], "quote": None,
+            "name": None, "exchange": None, "logo": None,
+        }
 
-    #Llama a groq pidiendo los datos necesarios.
-    response = await client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=messages,
-        tools=TOOLS,
-        tool_choice="auto",
+    # Paso 2: buscar el ticker correcto en Finnhub
+    ticker = await search_symbol(query)
+    if not ticker:
+        return {
+            "reply": f"No encontré ninguna acción para '{query}'. Verifica el nombre o ticker.",
+            "ticker": None, "chart": None, "news": [], "quote": None,
+            "name": None, "exchange": None, "logo": None,
+        }
+    ticker = ticker.upper()
+
+    # Paso 3: obtener todos los datos en paralelo
+    chart_data = await asyncio.get_running_loop().run_in_executor(None, get_stock_candles, ticker)
+    results = await asyncio.gather(
+        get_company_news(ticker),
+        get_stock_quote(ticker),
+        get_company_profile(ticker),
+        return_exceptions=True,
     )
+    news_data = results[0] if not isinstance(results[0], Exception) else []
+    quote_data = results[1] if not isinstance(results[1], Exception) else None
+    profile_data = results[2] if not isinstance(results[2], Exception) else None
 
-    assistant_msg = response.choices[0].message
-
-    if not assistant_msg.tool_calls:
-        return {"reply": assistant_msg.content or "", "ticker": None, "chart": None, "news": [], "quote": None}
-
-    messages.append(assistant_msg)
-
-    # Extraer el ticker del primer tool call
-    ticker = None
-    for tc in assistant_msg.tool_calls:
-        args = json.loads(tc.function.arguments)
-        if "symbol" in args:
-            ticker = args["symbol"].upper()
-            break
-
-    for tool_call in assistant_msg.tool_calls:
-        args = json.loads(tool_call.function.arguments)
-        result = await execute_tool(tool_call.function.name, args)
-        messages.append({
-            "role": "tool",
-            "tool_call_id": tool_call.id,
-            "content": result,
-        })
-
-    #Llamada a groq para obtener la respuesta final del modelo de AI, esta vez con los resultados de las herramientas.
-    final = await client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=messages,
-    )
-    reply_text = final.choices[0].message.content or ""
-
-    # Obtener gráfica + noticias + quote + perfil en paralelo
-    chart_data = None
-    news_data = []
-    quote_data = None
-    profile_data = None
-    if ticker:
-        chart_data = await asyncio.get_event_loop().run_in_executor(None, get_stock_candles, ticker)
-        results = await asyncio.gather(
-            get_company_news(ticker),
-            get_stock_quote(ticker),
-            get_company_profile(ticker),
-            return_exceptions=True,
-        )
-        chart_data = chart_data  # ya obtenido arriba
-        news_data = results[0] if not isinstance(results[0], Exception) else []
-        quote_data = results[1] if not isinstance(results[1], Exception) else None
-        profile_data = results[2] if not isinstance(results[2], Exception) else None
+    # Paso 4: generar respuesta en lenguaje natural
+    reply = await generate_reply(client, user_message, ticker, quote_data, profile_data)
 
     return {
-        "reply": reply_text,
+        "reply": reply,
         "ticker": ticker,
         "chart": chart_data,
         "news": news_data,
