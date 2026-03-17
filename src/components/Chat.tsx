@@ -11,6 +11,7 @@ const Chat = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]) //Estado donde se almacenan las conversaciones entre el usuario y el bot. Cada conversación incluye el texto del usuario, la respuesta del bot y los datos de acciones relacionados (si los hay).
   const [inputMessage, setInputMessage] = useState('') //Estado para controlar el valor del campo de entrada del usuario. 
   const [isLoading, setIsLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null) //Referencia a un elemento div al final de la lista de conversaciones. Se utiliza para desplazar automáticamente la vista hacia abajo cuando se agregan nuevas conversaciones o mientras el bot está "escribiendo" una respuesta.
 
   useEffect(() => {
@@ -35,6 +36,10 @@ const Chat = () => {
       setConversations((prev) =>
         prev.map((conv) => conv.id === id ? { ...conv, botText, stockData } : conv)
       )
+    }catch{
+      //Manejo de errores. 
+      setConversations((prev) => prev.filter((conv) => conv.id !== id))
+      setErrorMessage("Hubo error con el servidor. Porfavor Intenta de nuevo.")
     } finally {
       setIsLoading(false)
     }
@@ -143,6 +148,17 @@ const Chat = () => {
 
         <div ref={bottomRef} />
       </div>
+
+      {errorMessage && (
+        <div 
+          className="mx-4 mb-2 px-4 py-3 rounded-xl text-sm flex items-center justify-between"
+          style={{ backgroundColor: '#2d1b1b', border: '1px solid #7f1d1d', color: '#f87171' }}
+          >
+          <span>{errorMessage}</span>
+          <button onClick={() => setErrorMessage(null)} className="ml-4 hover:opacity-70 cursor-pointer">x</button>
+        </div>
+        
+      )}
 
       {/* Área de input */}
       <div className="p-4" style={{ borderTop: '1px solid #222f47' }}>
