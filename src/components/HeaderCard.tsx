@@ -1,10 +1,6 @@
+import type { StockData } from "../types"
 
-type HeaderCardProps = {
-    ticker: string, 
-    name: string | null, 
-    exchange: string | null, 
-    logo: string | null, 
-    quote: any, 
+type HeaderCardProps = Pick<StockData, 'ticker' | 'name' | 'exchange' | 'logo' | 'quote'> &{  //Toma las propiedades tal como estan definidas en la carpeta de types. 
     isPositive: boolean, 
     changeColor: string
 }

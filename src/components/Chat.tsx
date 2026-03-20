@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { BotIcon, SendIcon } from "../helpers/Icons"
 import StockCard from "./StockCard"
 import { callBackend } from "../helpers/functions"
+import ReactMarkdown from 'react-markdown'
  
 
 
@@ -101,7 +102,7 @@ const Chat = () => {
                 >
                   <BotIcon />
                 </div>
-                <div className="flex flex-col max-w-[75%]">
+                <div className="flex flex-col max-w-[75%] mt-3">
                   <div
                     className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm leading-relaxed"
                     style={{
@@ -110,7 +111,10 @@ const Chat = () => {
                       color: '#94a3b8',
                     }}
                   >
-                    {conv.botText}
+                    <ReactMarkdown>
+                      {conv.botText}
+                    </ReactMarkdown>
+                    
                   </div>
                   {conv.stockData && (
                     <StockCard data={conv.stockData} />
@@ -166,9 +170,6 @@ const Chat = () => {
           className="flex items-center rounded-2xl overflow-hidden px-4 py-1"
           style={{ backgroundColor: '#1a2436', border: '1px solid #222f47' }}
         >
-          <svg className="w-4 h-4 mr-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2">
-            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
-          </svg>
           <input
             type="text"
             value={inputMessage}

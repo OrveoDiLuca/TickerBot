@@ -21,6 +21,7 @@ export function buildChartData(timestamps: number[], closes: number[]): ChartPoi
 //Envia el mensaje que coloca el usuario al backend. 
 //Espera la respues del backend, la cual incluye el texto del bot y los datos de la acción. 
 export async function callBackend(message: string): Promise<{ botText: string; stockData: StockData | null }> {
+  //ToDO: Cambiar el link del http localhost. 
   const res = await fetch('http://localhost:8000/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

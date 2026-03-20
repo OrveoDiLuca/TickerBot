@@ -1,6 +1,6 @@
 import os
 from groq import Groq
-from services.agent import data_agent
+from services.agent import data_agent, fundamental_agent
 
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -42,9 +42,9 @@ async def orchestrator(message:str):
         return await data_agent(message)
 
     elif intent == "FUNDAMENTAL":
-        # Próximamente: fundamental_agent()
-        return await data_agent(message)  # fallback temporal
+        return await fundamental_agent(message)
 
+    #ToDo: agregar el agente de reocomendaciones. 
     elif intent == "RECOMMENDATION":
         # Próximamente: recommendation_agent()
         return await data_agent(message)  # fallback temporal
