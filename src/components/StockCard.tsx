@@ -136,7 +136,8 @@ export default function StockCard({ data }: { data: StockData }) {
             <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
               Últimas noticias
             </p>
-            {news.slice(0, 3).map((item, i) => (
+            <div className="flex flex-col gap-3 overflow-y-auto max-h-52 pr-1">
+            {news.slice(0, 8).map((item, i) => (
               <a
                 key={i}
                 href={item.url}
@@ -163,6 +164,7 @@ export default function StockCard({ data }: { data: StockData }) {
                 </span>
               </a>
             ))}
+            </div>
           </div>
         </div>
       )}

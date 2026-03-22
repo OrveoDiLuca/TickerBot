@@ -59,13 +59,18 @@ async def search_symbol(query: str) -> str | None:
         r.raise_for_status()
         data = r.json()
         results = data.get("result", [])
-        # Prioriza coincidencia exacta de símbolo, luego el primer resultado de tipo "Common Stock"
+        # Prioriza coincidencia exacta de símbolo (acciones, ETFs e índices)
         query_upper = query.upper()
         for item in results:
-            if item.get("symbol", "").upper() == query_upper and item.get("type") == "Common Stock":
+            if item.get("symbol", "").upper() == query_upper and item.get("type") in ("Common Stock", "ETP"):
                 return item["symbol"]
+        # Luego el primer resultado de tipo "Common Stock"
         for item in results:
             if item.get("type") == "Common Stock":
+                return item["symbol"]
+        # Luego el primer ETF/ETP (fondos indexados, materias primas)
+        for item in results:
+            if item.get("type") == "ETP":
                 return item["symbol"]
         if results:
             return results[0].get("symbol")
@@ -92,7 +97,7 @@ async def get_company_news(symbol: str) -> list:
         if not isinstance(news, list):
             return []
         result = []
-        for item in news[:4]:
+        for item in news[:8]:
             if item.get("headline"):
                 result.append({
                     "headline": item.get("headline", ""),

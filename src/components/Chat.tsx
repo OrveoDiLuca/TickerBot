@@ -5,6 +5,7 @@ import { BotIcon, SendIcon } from "../helpers/Icons"
 import StockCard from "./StockCard"
 import { callBackend } from "../helpers/functions"
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
  
 
 
@@ -111,7 +112,37 @@ const Chat = () => {
                       color: '#94a3b8',
                     }}
                   >
-                    <ReactMarkdown>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        table: ({ children }) => (
+                          <div className="overflow-x-auto my-3">
+                            <table className="w-full text-xs border-collapse" style={{ borderColor: '#2d3f5e' }}>
+                              {children}
+                            </table>
+                          </div>
+                        ),
+                        thead: ({ children }) => (
+                          <thead style={{ backgroundColor: '#1e2d45' }}>{children}</thead>
+                        ),
+                        th: ({ children }) => (
+                          <th className="px-3 py-2 text-left font-semibold" style={{ color: '#cbd5e1', borderBottom: '1px solid #2d3f5e' }}>
+                            {children}
+                          </th>
+                        ),
+                        td: ({ children }) => (
+                          <td className="px-3 py-2" style={{ borderBottom: '1px solid #1e2d45', color: '#94a3b8' }}>
+                            {children}
+                          </td>
+                        ),
+                        strong: ({ children }) => (
+                          <strong style={{ color: '#e2e8f0', fontWeight: 600 }}>{children}</strong>
+                        ),
+                        p: ({ children }) => (
+                          <p className="mb-2 last:mb-0">{children}</p>
+                        ),
+                      }}
+                    >
                       {conv.botText}
                     </ReactMarkdown>
                     

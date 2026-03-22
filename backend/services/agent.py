@@ -7,20 +7,50 @@ from .sec import get_10k_text, get_10k_accession
 from .vector_store import ingest_10k, query_10k
 from .yfinance_service import get_fundamentals
 
-MODEL = "llama-3.3-70b-versatile"
+MODEL = "llama-3.3-70b-versatile" #nombre del modelo que utiliza el agente.
+
+# Mapeo de aliases comunes (materias primas, índices) a sus tickers ETF
+ASSET_ALIASES: dict[str, str] = {
+    # Oro / Gold
+    "oro": "GLD", "gold": "GLD", "xau": "GLD", "xauusd": "GLD",
+    # Petróleo / Oil
+    "petróleo": "USO", "petroleo": "USO", "oil": "USO", "crude": "USO",
+    "wti": "USO", "brent": "BNO",
+    # Plata / Silver
+    "plata": "SLV", "silver": "SLV",
+    # S&P 500
+    "s&p 500": "VOO", "s&p500": "VOO", "sp500": "VOO", "s&p": "VOO",
+    # Nasdaq
+    "nasdaq": "QQQ", "nasdaq 100": "QQQ", "nasdaq100": "QQQ",
+    # Dow Jones
+    "dow jones": "DIA", "djia": "DIA", "dow": "DIA",
+    # Russell 2000
+    "russell 2000": "IWM", "russell": "IWM",
+    # VIX
+    "vix": "VIXY",
+}
+
+
+def resolve_ticker_alias(query: str) -> str | None:
+    """Resuelve aliases de materias primas e índices a sus tickers ETF equivalentes."""
+    if query:
+        return ASSET_ALIASES.get(query.lower().strip())
+    return None
 
 
 async def extract_ticker(client: AsyncGroq, user_message: str) -> str | None:
-    """Le pide al modelo que extraiga el ticker o nombre de empresa del mensaje del usuario."""
+    """Le pide al modelo que extraiga el ticker, nombre de empresa, materia prima o índice del mensaje del usuario."""
     response = await client.chat.completions.create(
         model=MODEL,
         messages=[
             {
                 "role": "system",
                 "content": (
-                    "Extrae el nombre de empresa o ticker del mensaje del usuario. "
-                    "Responde ÚNICAMENTE con un JSON como: {\"query\": \"Apple\"} o {\"query\": \"AAPL\"}. "
-                    "Si no hay ninguna empresa o ticker mencionado, responde: {\"query\": null}. "
+                    "Extrae el activo financiero mencionado en el mensaje del usuario. "
+                    "Puede ser: nombre de empresa, ticker, materia prima (oro, petróleo, plata) o índice bursátil (S&P 500, Nasdaq, Dow Jones). "
+                    "Responde ÚNICAMENTE con un JSON como: {\"query\": \"Apple\"}, {\"query\": \"AAPL\"}, "
+                    "{\"query\": \"oro\"}, {\"query\": \"S&P 500\"} o {\"query\": \"Nasdaq\"}. "
+                    "Si no hay ningún activo financiero mencionado, responde: {\"query\": null}. "
                     "Sin explicaciones, solo el JSON."
                 ),
             },
@@ -53,7 +83,9 @@ async def generate_reply(client: AsyncGroq, user_message: str, ticker: str, quot
                 "content": (
                     "Eres TickerBot, un asistente de datos financieros. "
                     "Responde en el mismo idioma del usuario usando los datos proporcionados. "
-                    "Menciona el precio actual, el cambio del día, la bolsa y la industria."
+                    "El activo puede ser una acción, ETF, índice bursátil (S&P 500, Nasdaq, etc.) o materia prima (oro, petróleo, plata). "
+                    "Menciona el precio actual, el cambio del día y, si está disponible, la bolsa y la industria. "
+                    "Si es un índice o ETF, contextualiza qué representa ese activo."
                 ),
             },
             {"role": "user", "content": user_message},
@@ -78,11 +110,11 @@ async def data_agent(user_message: str) -> dict:
             "name": None, "exchange": None, "logo": None,
         }
 
-    # Paso 2: buscar el ticker correcto en Finnhub
-    ticker = await search_symbol(query)
+    # Paso 2: resolver alias conocido (índice/materia prima) o buscar en Finnhub
+    ticker = resolve_ticker_alias(query) or await search_symbol(query)
     if not ticker:
         return {
-            "reply": f"No encontré ninguna acción para '{query}'. Verifica el nombre o ticker.",
+            "reply": f"No encontré ningún activo para '{query}'. Verifica el nombre o ticker.",
             "ticker": None, "chart": None, "news": [], "quote": None,
             "name": None, "exchange": None, "logo": None,
         }
@@ -163,11 +195,11 @@ async def fundamental_agent(user_message: str) -> dict:
             "name": None, "exchange": None, "logo": None,
         }
 
-    # Paso 2: buscar el ticker correcto en Finnhub
-    ticker = await search_symbol(query)
+    # Paso 2: resolver alias conocido (índice/materia prima) o buscar en Finnhub
+    ticker = resolve_ticker_alias(query) or await search_symbol(query)
     if not ticker:
         return {
-            "reply": f"No encontré ninguna acción para '{query}'. Verifica el nombre o ticker.",
+            "reply": f"No encontré ningún activo para '{query}'. Verifica el nombre o ticker.",
             "ticker": None, "chart": None, "news": [], "quote": None,
             "name": None, "exchange": None, "logo": None,
         }
@@ -184,8 +216,18 @@ async def fundamental_agent(user_message: str) -> dict:
     )
 
     if not text:
+        is_etf = ticker in {v for v in ASSET_ALIASES.values()}
+        if is_etf:
+            reply = (
+                f"El análisis fundamental basado en 10-K no aplica para **{ticker}** "
+                f"ya que es un ETF o fondo indexado, no una empresa individual. "
+                f"Los ETFs no presentan reportes 10-K ante la SEC. "
+                f"Para consultar precio, gráfico y noticias usa el análisis de datos de mercado."
+            )
+        else:
+            reply = f"No pude obtener el reporte 10-K de {ticker} desde la SEC."
         return {
-            "reply": f"No pude obtener el reporte 10-K de {ticker} desde la SEC.",
+            "reply": reply,
             "ticker": ticker, "chart": None, "news": [], "quote": None,
             "name": None, "exchange": None, "logo": None,
         }
@@ -311,7 +353,30 @@ async def fundamental_agent(user_message: str) -> dict:
                     "Si algún punto NO aparece en los fragmentos, escribe: '→ **[tema]**: El 10-K no detalla esta información.' "
                     "Nunca rellenes con suposiciones ni con descripción de productos actuales.\n\n"
                     "Si un dato de yfinance aparece como N/D, indícalo explícitamente. "
-                    "Usa formato markdown con negritas y listas."
+                    "Usa formato markdown con negritas y listas.\n\n"
+                    "7) **Veredicto Final** — al terminar el análisis, genera SIEMPRE esta sección con exactamente este formato:\n\n"
+                    "---\n"
+                    "## Veredicto Final\n\n"
+                    "| Dimensión | Puntuación | Interpretación |\n"
+                    "|---|---|---|\n"
+                    "| Valoración de la empresa | X/5 | [breve justificación basada en ratios de valoración] |\n"
+                    "| Potencial de crecimiento | X/5 | [breve justificación basada en perspectivas y crecimiento de ingresos] |\n"
+                    "| Salud financiera | X/5 | [breve justificación basada en deuda, liquidez y flujo de caja] |\n"
+                    "| Riesgo de inversión | X/5 | [breve justificación basada en los riesgos identificados] |\n\n"
+                    "Criterios de puntuación obligatorios:\n"
+                    "- **Valoración de la empresa** (¿está barata o cara?): "
+                    "1=extremadamente sobrevalorada, 2=sobrevalorada, 3=valoración justa, 4=algo infravalorada, 5=muy infravalorada. "
+                    "Basa el score en P/E, P/B, EV/EBITDA comparados con la industria.\n"
+                    "- **Potencial de crecimiento** (¿tiene momentum y perspectivas?): "
+                    "1=decrecimiento o sin perspectivas, 2=crecimiento débil, 3=crecimiento moderado, 4=crecimiento sólido, 5=crecimiento excepcional. "
+                    "Basa el score en crecimiento de ingresos, EPS y proyectos futuros del 10-K.\n"
+                    "- **Salud financiera** (¿puede sostenerse a largo plazo?): "
+                    "1=muy frágil (deuda excesiva, flujo negativo), 2=débil, 3=aceptable, 4=sólida, 5=excelente (baja deuda, FCF positivo fuerte). "
+                    "Basa el score en Debt/Equity, Current Ratio, Free Cash Flow.\n"
+                    "- **Riesgo de inversión** (¿cuánto riesgo asume el inversor?): "
+                    "1=riesgo mínimo, 2=bajo riesgo, 3=riesgo moderado, 4=alto riesgo, 5=riesgo muy alto. "
+                    "Basa el score en la cantidad y gravedad de riesgos identificados en el 10-K.\n\n"
+                    "Después de la tabla agrega una línea de **Conclusión** de máximo 2 oraciones que sintetice el perfil inversor de la empresa."
                 ),
             },
             {
