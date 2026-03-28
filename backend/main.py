@@ -9,11 +9,17 @@ from services.orchestrator import orchestrator
 
 app = FastAPI(title="TickerBot API")
 
+import os
+
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    #ToDO: Verificar o cambiar el link. 
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_methods=["POST"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )
 
@@ -58,7 +64,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={"detail": str(exc)},
-        headers={"Access-Control-Allow-Origin": "http://localhost:5173"},
+        headers={"Access-Control-Allow-Origin": ALLOWED_ORIGINS[0]},
     )
 
 @app.post("/chat", response_model=ChatResponse) #Registra el endpoint /chat que es el endpoint principal de la aplicacion. 
