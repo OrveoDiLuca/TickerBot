@@ -6,96 +6,7 @@ from .finnhub import get_stock_quote, get_company_profile, get_stock_candles, ge
 from .sec import get_10k_text, get_10k_accession
 from .vector_store import ingest_10k, query_10k
 from .yfinance_service import get_fundamentals
-
-MODEL = "llama-3.3-70b-versatile" #nombre del modelo que utiliza el agente.
-
-# Mapeo de aliases comunes (materias primas, índices) a sus tickers ETF
-ASSET_ALIASES: dict[str, str] = {
-    # Oro / Gold
-    "oro": "GLD", "gold": "GLD", "xau": "GLD", "xauusd": "GLD",
-    # Petróleo / Oil
-    "petróleo": "USO", "petroleo": "USO", "oil": "USO", "crude": "USO",
-    "wti": "USO", "brent": "BNO",
-    # Plata / Silver
-    "plata": "SLV", "silver": "SLV",
-    # S&P 500
-    "s&p 500": "VOO", "s&p500": "VOO", "sp500": "VOO", "s&p": "VOO",
-    # Nasdaq
-    "nasdaq": "QQQ", "nasdaq 100": "QQQ", "nasdaq100": "QQQ",
-    # Dow Jones
-    "dow jones": "DIA", "djia": "DIA", "dow": "DIA",
-    # Russell 2000
-    "russell 2000": "IWM", "russell": "IWM",
-    # VIX
-    "vix": "VIXY",
-}
-
-
-def resolve_ticker_alias(query: str) -> str | None:
-    """Resuelve aliases de materias primas e índices a sus tickers ETF equivalentes."""
-    if query:
-        return ASSET_ALIASES.get(query.lower().strip())
-    return None
-
-
-async def extract_ticker(client: AsyncGroq, user_message: str) -> str | None:
-    """Le pide al modelo que extraiga el ticker, nombre de empresa, materia prima o índice del mensaje del usuario."""
-    response = await client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Extrae el activo financiero mencionado en el mensaje del usuario. "
-                    "Puede ser: nombre de empresa, ticker, materia prima (oro, petróleo, plata) o índice bursátil (S&P 500, Nasdaq, Dow Jones). "
-                    "Responde ÚNICAMENTE con un JSON como: {\"query\": \"Apple\"}, {\"query\": \"AAPL\"}, "
-                    "{\"query\": \"oro\"}, {\"query\": \"S&P 500\"} o {\"query\": \"Nasdaq\"}. "
-                    "Si no hay ningún activo financiero mencionado, responde: {\"query\": null}. "
-                    "Sin explicaciones, solo el JSON."
-                ),
-            },
-            {"role": "user", "content": user_message},
-        ],
-        temperature=0,
-        max_tokens=30,
-        response_format={"type": "json_object"},
-    )
-    try:
-        data = json.loads(response.choices[0].message.content or "{}")
-        return data.get("query")
-    except Exception:
-        return None
-
-
-async def generate_reply(client: AsyncGroq, user_message: str, ticker: str, quote: dict, profile: dict) -> str:
-    """Genera una respuesta en lenguaje natural con los datos obtenidos."""
-    context = f"Ticker: {ticker}\n"
-    if profile:
-        context += f"Empresa: {profile.get('name')}, Bolsa: {profile.get('exchange')}, Industria: {profile.get('finnhubIndustry')}\n"
-    if quote:
-        context += f"Precio actual: ${quote.get('c')}, Cambio: {quote.get('d')} ({quote.get('dp')}%)\n"
-
-    response = await client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Eres TickerBot, un asistente de datos financieros. "
-                    "Responde en el mismo idioma del usuario usando los datos proporcionados. "
-                    "El activo puede ser una acción, ETF, índice bursátil (S&P 500, Nasdaq, etc.) o materia prima (oro, petróleo, plata). "
-                    "Menciona el precio actual, el cambio del día y, si está disponible, la bolsa y la industria. "
-                    "Si es un índice o ETF, contextualiza qué representa ese activo."
-                ),
-            },
-            {"role": "user", "content": user_message},
-            {"role": "assistant", "content": f"Datos obtenidos:\n{context}"},
-            {"role": "user", "content": "Con esos datos, responde al usuario de forma clara y concisa."},
-        ],
-        temperature=0.3,
-        max_tokens=300,
-    )
-    return response.choices[0].message.content or ""
+from .functios import resolve_ticker_alias, extract_ticker, extract_risk_profile, generate_reply, ASSET_ALIASES, MODEL, QUALITATIVE_TOPICS, RISK_TOPICS, GROWTH_TOPICS
 
 
 async def data_agent(user_message: str) -> dict:
@@ -145,42 +56,6 @@ async def data_agent(user_message: str) -> dict:
         "exchange": profile_data.get("exchange") if profile_data else None,
         "logo": profile_data.get("logo") if profile_data else None,
     }
-
-
-# Temas cualitativos generales — contexto estratégico y de negocio
-QUALITATIVE_TOPICS = [
-    "competitive advantage moat brand differentiation barriers to entry",
-    "management strategy capital allocation priorities",
-    "environmental social governance ESG sustainability",
-]
-
-# Temas de perspectivas de crecimiento — orientados al futuro, no a productos actuales
-GROWTH_TOPICS = [
-    "future product upcoming launch plan will introduce next generation announced roadmap",
-    "new technology under development plan intend will invest artificial intelligence machine learning",
-    "expected revenue growth forecast guidance future outlook anticipate project next year",
-    "geographic market expansion plan intend will enter new region country emerging market target",
-    "research development pipeline future innovation invest will develop next generation platform",
-    "upcoming service product category planned future initiative will launch introduce",
-    "strategic priority future investment area focus intend allocate capital next years plan",
-    "new segment business unit future potential growth opportunity plan will expand",
-]
-
-# Temas de riesgo específicos — se consultan con más chunks para mayor profundidad
-RISK_TOPICS = [
-    "manufacturing concentration geographic risk country supplier single source",
-    "antitrust monopoly regulatory investigation platform competition law enforcement",
-    "revenue concentration product segment dependence single product category percentage",
-    "key person risk executive leadership CEO management retention talent departure",
-    "regulatory payment services financial regulation platform fees legislation government",
-    "supply chain disruption geopolitical tariff trade restriction export control sanction",
-    "macroeconomic risk inflation interest rate currency foreign exchange recession",
-    "cybersecurity data privacy breach intellectual property theft attack vulnerability",
-    "litigation legal proceedings pending lawsuits settlement class action damages",
-    "competition market share rival substitute technology disruption new entrant",
-    "share buyback repurchase program treasury stock equity reduction stockholders deficit",
-]
-
 
 async def fundamental_agent(user_message: str) -> dict:
     client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
@@ -389,7 +264,7 @@ async def fundamental_agent(user_message: str) -> dict:
             },
             {"role": "user", "content": user_message},
         ],
-        temperature=0.2,
+        temperature=0.2, #Le dice al agente que tan determinista sea la respuesta al usuario. 
         max_tokens=2500,
     )
     reply = response.choices[0].message.content or ""
@@ -413,4 +288,224 @@ async def fundamental_agent(user_message: str) -> dict:
         "name": profile_data.get("name") if profile_data else None,
         "exchange": profile_data.get("exchange") if profile_data else None,
         "logo": profile_data.get("logo") if profile_data else None,
+    }
+
+async def recommendation_agent(user_message: str, history: list[dict] | None = None) -> dict:
+    client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
+    loop = asyncio.get_running_loop()
+    if history is None:
+        history = []
+
+    full_history = history + [{"role": "user", "content": user_message}]
+    query, risk_profile = await asyncio.gather(
+        extract_ticker(client, user_message),
+        extract_risk_profile(client, full_history),
+    )
+
+    # Si el ticker no está en el mensaje actual, buscarlo en el historial
+    if not query:
+        for msg in history:
+            if msg.get("role") == "user":
+                query = await extract_ticker(client, msg["content"])
+                if query:
+                    break
+
+    if not query:
+        return {
+            "reply": "No identifiqué ninguna empresa. ¿Puedes especificar cuál acción te interesa?",
+            "ticker": None, "chart": None, "news": [], "quote": None,
+            "name": None, "exchange": None, "logo": None,
+        }
+    
+    ticker = resolve_ticker_alias(query) or await search_symbol(query)
+    if not ticker:
+        return {
+            "reply": f"No encontré ningún activo para '{query}'. Verifica el nombre o ticker.",
+            "ticker": None, "chart": None, "news": [], "quote": None,
+            "name": None, "exchange": None, "logo": None,
+        }
+    ticker = ticker.upper()
+    if risk_profile is None: 
+        return{
+            "reply": "Para darte una recomendación personalizada, ¿cuál es tu perfil como inversor?\n\n**Conservador** — prefieres bajo riesgo y estabilidad.\n**Agresivo** — buscas altos rendimientos y aceptas mayor riesgo",                                                                                                                                                                                                
+            "ticker": ticker, "chart": None, "news": [], "quote": None,
+            "name": None, "exchange": None, "logo": None,  
+        }
+    #Obteniendo los 4 datos al mismo tiempo. 
+    quote_data, fundamentals_data, profile_data, news_data = await asyncio.gather(
+      get_stock_quote(ticker),                                                                                                                                                                                   
+      loop.run_in_executor(None, get_fundamentals, ticker),
+      get_company_profile(ticker),                                                                                                                                                                               
+      get_company_news(ticker),                                                                                                                                                                                  
+      return_exceptions=True,
+    ) 
+    #En caso de que algunas de los datos no funcione. 
+    if isinstance(quote_data, Exception):                                                                                                                                                                          
+        quote_data = None                                                                                                                                                                                          
+    if isinstance(fundamentals_data, Exception):                                                                                                                                                                   
+        fundamentals_data = None                                                                                                                                                                                   
+    if isinstance(profile_data, Exception):
+        profile_data = None
+    if isinstance(news_data, Exception):
+        news_data = []
+
+    #Construyendo el contexto. 
+    current_price = quote_data.get("c") if quote_data else "N/D"
+    day_change = f"{quote_data.get('dp', 0):.2f}%" if quote_data else "N/D" 
+    company_name = profile_data.get("name") if profile_data else ticker  
+    fundamentals_summary = fundamentals_data.get("summary", "No disponible") if fundamentals_data else "No disponible" 
+
+    news_summary = "" 
+    if news_data:                                                                                                                                                                                                  
+      headlines = [n.get("headline", "") for n in news_data[:3]]
+      news_summary = "\n".join(f"- {h}" for h in headlines)
+
+    data_context = (                                                                                                                                                                                               
+      f"**Empresa:** {company_name} ({ticker})\n"                                                                                                                                                                
+      f"**Precio actual:** ${current_price} (cambio hoy: {day_change})\n\n"
+      f"**Métricas fundamentales:**\n{fundamentals_summary}\n\n"                                                                                                                                                 
+      f"**Noticias recientes:**\n{news_summary or 'No disponibles'}"                                                                                                                                             
+    )
+
+    if risk_profile == "CONSERVATIVE": 
+        profile_instruction = (
+            "El usuario es un inversor CONSERVADOR. "
+            "Enfócate en: estabilidad de ingresos, dividendos, deuda baja (Debt/Equity < 1,"                                                                                                                     
+            "flujo de caja positivo, empresa establecida con bajo riesgo. "                                                                                                                                        
+            "Penaliza fuertemente alta volatilidad, deuda excesiva o pérdidas netas."
+        ) 
+    else:
+        profile_instruction =(
+            "El usuario es un inversor AGRESIVO. "
+            "Enfócate en: crecimiento de ingresos, momentum, upside potencial, "                                                                                                                                   
+            "sectores de alto crecimiento (tech, biotech, etc.), expansión de mercado. "                                                                                                                           
+            "Acepta mayor deuda si el crecimiento lo justifica."
+        )
+    response = await client.chat.completions.create(
+        model = MODEL, 
+        messages = [{
+            "role": "system",
+            "content": (
+                "Eres TickerBot, un asesor de inversiones experto. "
+                "Responde en el mismo idioma del usuario. "                                                                                                                                                    
+                f"{profile_instruction}\n\n"                                                                                                                                                                   
+                "Con base en los datos financieros proporcionados, emite una recomendación clara con este formato:\n\n"                                                                                        
+                "## Recomendación: [COMPRAR / MANTENER / VENDER]\n\n"                                                                                                                                          
+                "**Justificación:** (2-3 puntos clave que sustentan la decisión)\n\n"
+                "**Factores a favor:**\n- ...\n\n"                                                                                                                                                             
+                "**Factores de riesgo:**\n- ...\n\n"                                                                                                                                                           
+                "**Conclusión:** Una oración final adaptada al perfil del inversor.\n\n"                                                                                                                       
+                "Sé directo y específico. No uses frases genéricas."  
+            ),
+        },
+        *history, 
+        {
+            "role": "user",
+            "content": f"Datos actuales de {ticker}:\n{data_context}\n\nPregunta del usuario: {user_message}"
+        }], 
+        temperature = 0.3,
+        max_tokens = 1000,
+    )
+    reply = response.choices[0].message.content or ""
+
+    return {
+        "reply": reply,
+        "ticker": ticker,
+        "chart": None,
+        "news": news_data if not isinstance(news_data, Exception) else [],
+        "quote": quote_data,
+        "name": profile_data.get("name") if profile_data else None,
+        "exchange": profile_data.get("exchange") if profile_data else None,
+        "logo": profile_data.get("logo") if profile_data else None,
+    }
+
+
+async def ideas_agent(user_message: str, history: list[dict] | None = None) -> dict:
+    client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
+    if history is None:
+        history = []
+
+    full_history = history + [{"role": "user", "content": user_message}]
+    risk_profile = await extract_risk_profile(client, full_history)
+
+    if risk_profile is None:
+        return {
+            "reply": (
+                "¡Claro! Para darte **ideas de inversión personalizadas**, primero necesito conocer tu perfil como inversor:\n\n"
+                "**Conservador** — prefieres estabilidad, dividendos y bajo riesgo.\n"
+                "**Moderado** — buscas equilibrio entre crecimiento y estabilidad.\n"
+                "**Agresivo** — buscas alto crecimiento y aceptas mayor riesgo.\n\n"
+                "¿Con cuál te identificas?"
+            ),
+            "ticker": None, "chart": None, "news": [], "quote": None,
+            "name": None, "exchange": None, "logo": None,
+        }
+
+    if risk_profile == "CONSERVATIVE":
+        profile_label = "CONSERVADOR"
+        criteria = (
+            "El usuario es un inversor CONSERVADOR. "
+            "Recomienda empresas con: dividendos estables y consistentes (yield > 2%), baja volatilidad (beta < 1), "
+            "balance sólido, deuda baja o manejable, historial probado de más de 10 años en bolsa. "
+            "Sectores preferidos: utilities (servicios públicos), consumer staples (bienes de consumo básico), "
+            "salud (farmacéuticas grandes y establecidas), financiero (bancos grandes), REITs de calidad. "
+            "Evita empresas especulativas, con pérdidas netas o alta deuda."
+        )
+    elif risk_profile == "MODERATE":
+        profile_label = "MODERADO"
+        criteria = (
+            "El usuario es un inversor MODERADO. "
+            "Recomienda empresas con: crecimiento moderado y sostenible, dividendos opcionales pero valorados, "
+            "balance saludable, presencia en sectores con perspectivas sólidas a mediano plazo. "
+            "Mezcla sectores defensivos (salud, consumer staples) con sectores de crecimiento estable "
+            "(tecnología consolidada, industriales líderes, energía diversificada). "
+            "Equilibra rendimiento y estabilidad."
+        )
+    else:  # AGGRESSIVE
+        profile_label = "AGRESIVO"
+        criteria = (
+            "El usuario es un inversor AGRESIVO. "
+            "Recomienda empresas con: alto crecimiento de ingresos (>20% YoY), liderazgo en sectores disruptivos, "
+            "gran potencial de upside a largo plazo. "
+            "Sectores preferidos: tecnología (IA, cloud, semiconductores), biotecnología, fintech, "
+            "energías renovables, mercados emergentes. "
+            "Acepta mayor volatilidad y riesgo si el potencial de crecimiento lo justifica."
+        )
+
+    response = await client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Eres TickerBot, un asesor de inversiones experto. "
+                    "Responde en el mismo idioma del usuario. "
+                    f"{criteria}\n\n"
+                    "Genera una lista de exactamente 6 ideas de inversión usando este formato para cada una:\n\n"
+                    "### [Número]. [Nombre completo de la empresa] ([TICKER])\n"
+                    "**Sector:** [sector]\n"
+                    "**Por qué encaja con tu perfil:** [2-3 oraciones específicas con datos concretos]\n"
+                    "**Riesgo principal a tener en cuenta:** [1 oración concreta]\n\n"
+                    "Al final, añade una sección **Nota sobre diversificación** de 2-3 oraciones.\n\n"
+                    "Usa exclusivamente empresas reales con tickers válidos de NYSE o NASDAQ. "
+                    "Sé específico, no uses frases genéricas."
+                )
+            },
+            *history,
+            {"role": "user", "content": user_message}
+        ],
+        temperature=0.4,
+        max_tokens=1800,
+    )
+    reply = response.choices[0].message.content or ""
+
+    return {
+        "reply": reply,
+        "ticker": None,
+        "chart": None,
+        "news": [],
+        "quote": None,
+        "name": None,
+        "exchange": None,
+        "logo": None,
     }

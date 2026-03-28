@@ -1,5 +1,14 @@
+import type { Conversation } from '../types'
 
-const Sidebar = () => {
+type SidebarProps = {
+  conversations: Conversation[]
+  onNewChat: () => void
+}
+
+const Sidebar = ({ conversations, onNewChat }: SidebarProps) => {
+  // Solo mostrar mensajes donde el bot ya respondió
+  const completed = conversations.filter((c) => c.botText !== null)
+
   return (
     <aside
       className="w-64 flex flex-col h-full rounded-2xl overflow-hidden shrink-0"
@@ -16,6 +25,7 @@ const Sidebar = () => {
       {/* New Analysis Button */}
       <div className="px-4 pb-4">
         <button
+          onClick={onNewChat}
           className="w-full text-white font-semibold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-sm transition-opacity hover:opacity-90"
           style={{ backgroundColor: '#2b6cee' }}
         >
@@ -24,8 +34,25 @@ const Sidebar = () => {
         </button>
       </div>
 
-      {/* Navigation */}
-        {/* Recent Insights */}
+      {/* Recent chats */}
+      {completed.length > 0 && (
+        <div className="px-4 flex-1 overflow-y-auto">
+          <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#4a5e7a' }}>
+            Recent
+          </p>
+          <ul className="flex flex-col gap-1">
+            <li>
+              <span
+                className="block truncate text-sm px-3 py-2 rounded-lg cursor-default"
+                style={{ color: '#94a3b8' }}
+                title={completed[0].userText}
+              >
+                {completed[0].userText}
+              </span>
+            </li>
+          </ul>
+        </div>
+      )}
 
       {/* Bottom Section */}
     </aside>

@@ -19,6 +19,7 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
+    history: list[dict] = []
 
 
 class ChartData(BaseModel):
@@ -64,7 +65,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def chat(body: ChatRequest):
     if not body.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
-    result = await orchestrator(body.message)
+    result = await orchestrator(body.message, body.history)
     return ChatResponse(
         reply=result["reply"],
         ticker=result.get("ticker"),

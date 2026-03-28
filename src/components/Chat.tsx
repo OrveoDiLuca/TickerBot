@@ -6,12 +6,15 @@ import StockCard from "./StockCard"
 import { callBackend } from "../helpers/functions"
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
- 
 
 
-const Chat = () => {
-  const [conversations, setConversations] = useState<Conversation[]>([]) //Estado donde se almacenan las conversaciones entre el usuario y el bot. Cada conversación incluye el texto del usuario, la respuesta del bot y los datos de acciones relacionados (si los hay).
-  const [inputMessage, setInputMessage] = useState('') //Estado para controlar el valor del campo de entrada del usuario. 
+type ChatProps = {
+  conversations: Conversation[]
+  setConversations: React.Dispatch<React.SetStateAction<Conversation[]>>
+}
+
+const Chat = ({ conversations, setConversations }: ChatProps) => {
+  const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null) //Referencia a un elemento div al final de la lista de conversaciones. Se utiliza para desplazar automáticamente la vista hacia abajo cuando se agregan nuevas conversaciones o mientras el bot está "escribiendo" una respuesta.
@@ -34,7 +37,14 @@ const Chat = () => {
     setIsLoading(true)
 
     try {
-      const { botText, stockData } = await callBackend(trimmedMessage) //Esta linea aplica un destructuring al mensaje del usuario, y lo divide en el mensaje del bot y el stock que solicita el usuario. 
+      const history = conversations.flatMap((conv) => {
+        const msgs: { role: string; content: string }[] = [
+          { role: 'user', content: conv.userText },
+        ]
+        if (conv.botText) msgs.push({ role: 'assistant', content: conv.botText })
+        return msgs
+      })
+      const { botText, stockData } = await callBackend(trimmedMessage, history)
       setConversations((prev) =>
         prev.map((conv) => conv.id === id ? { ...conv, botText, stockData } : conv)
       )
