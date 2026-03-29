@@ -3,10 +3,9 @@ from groq import Groq
 from services.agent import data_agent, fundamental_agent, recommendation_agent, ideas_agent
 
 
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-
 def classify_mssg(message: str) -> str:
     """Le pregunta a la LLM qué tipo de consulta escribió el usuario."""
+    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
