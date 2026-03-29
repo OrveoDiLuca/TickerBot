@@ -1,15 +1,24 @@
 import chromadb
-from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 from pathlib import Path
 
 # Carpeta donde ChromaDB guarda sus datos en disco
 CHROMA_DIR = Path(__file__).parent.parent / "chroma_db"
 
-# Modelo de embeddings (se descarga automaticamente la primera vez)
-embedding_fn = SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+_embedding_fn = None
+_client = None
 
-# Cliente persistente: los datos sobreviven entre reinicios
-client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+def _get_embedding_fn():
+    global _embedding_fn
+    if _embedding_fn is None:
+        _embedding_fn = DefaultEmbeddingFunction()
+    return _embedding_fn
+
+def _get_client():
+    global _client
+    if _client is None:
+        _client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+    return _client
 
 
 def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
@@ -30,9 +39,9 @@ def ingest_10k(ticker: str, text: str) -> int:
     Cada empresa tiene su propia coleccion.
     Retorna la cantidad de chunks guardados.
     """
-    collection = client.get_or_create_collection(
+    collection = _get_client().get_or_create_collection(
         name=f"10k_{ticker.lower()}",
-        embedding_function=embedding_fn,
+        embedding_function=_get_embedding_fn(),
     )
 
     # Si ya tiene documentos, no volvemos a ingestar
@@ -55,9 +64,9 @@ def query_10k(ticker: str, question: str, n_results: int = 5) -> list[dict]:
     Busca en ChromaDB los chunks mas relevantes para la pregunta dada.
     Retorna una lista de dicts con 'text' y 'chunk_index'.
     """
-    collection = client.get_or_create_collection(
+    collection = _get_client().get_or_create_collection(
         name=f"10k_{ticker.lower()}",
-        embedding_function=embedding_fn,
+        embedding_function=_get_embedding_fn(),
     )
 
     if collection.count() == 0:
