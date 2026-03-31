@@ -1,73 +1,12 @@
-# React + TypeScript + Vite
+# TickerBot es un agente de inteligencia artificial que ayuda a personas que no tienen conocimientos profundos en la bolsa de valores. Este agente tiene distintas características que te ayuda a invertir. 
+1 - La primera característica es que te proporciona información relacionada sobre la acción que pide el usuario, esta información es el precio actual de bolsa y las ultimas noticias relacionadas sobre la acción. 
+<img width="1710" height="952" alt="Captura de pantalla 2026-03-31 a la(s) 10 19 39 a  m" src="https://github.com/user-attachments/assets/136c42e8-5799-4689-8571-6874e0679bd4" />
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+2 - La segunda característica es que el agente te ayuda a realizar análisis fundamental de la acción que le pidas. Los datos proporcionados son descargados directamente de la SEC-EDGAR. 
 
-Currently, two official plugins are available:
+3 - La tercera característica es que el agente te proporciona recomendaciones de inversiones de empresas según tu perfil de inversor, tienes dos opciones: Conservador y Agresivo. 
+<img width="1698" height="448" alt="Captura de pantalla 2026-03-31 a la(s) 10 25 34 a  m" src="https://github.com/user-attachments/assets/6b98f8ad-5f6f-4562-b0a4-37b6ddf7f370" />
+<img width="1709" height="883" alt="Captura de pantalla 2026-03-31 a la(s) 10 26 01 a  m" src="https://github.com/user-attachments/assets/78994cd8-d51d-44c0-bb22-46057e4908b1" />
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-## React Compiler
-
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+# Arquitectura del agente 
