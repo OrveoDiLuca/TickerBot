@@ -17,3 +17,4 @@ El agente esta implementado con una arquitectura de multi-agent, ya que tenemos 
 El stack de este agente fue el siguiente: 
 - Lenguajes de programación: React(TypeScript FrontEND), Python(Backend).
 - Base de datos: ChromDB para realizar el proceso de RAG, esta base de datos ingesta los datos de 10-k, se realiza el proceso de chunk de los textos con un overlap de 50.  
+Se desplegó el backend en Google Cloud Run. 
