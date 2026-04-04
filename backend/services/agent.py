@@ -114,40 +114,51 @@ async def fundamental_agent(user_message: str) -> dict:
 
     await loop.run_in_executor(None, ingest_10k, ticker, text)
 
-    # Paso 4: consultar ChromaDB — generales (3), riesgos (5) y crecimiento (5)
+    # Paso 4: consultar ChromaDB — generales (2), riesgos (2) y crecimiento (2)
     general_results, risk_results, growth_results = await asyncio.gather(
         asyncio.gather(
-            *[loop.run_in_executor(None, query_10k, ticker, topic, 3) for topic in QUALITATIVE_TOPICS]
+            *[loop.run_in_executor(None, query_10k, ticker, topic, 2) for topic in QUALITATIVE_TOPICS]
         ),
         asyncio.gather(
-            *[loop.run_in_executor(None, query_10k, ticker, topic, 5) for topic in RISK_TOPICS]
+            *[loop.run_in_executor(None, query_10k, ticker, topic, 2) for topic in RISK_TOPICS]
         ),
         asyncio.gather(
-            *[loop.run_in_executor(None, query_10k, ticker, topic, 5) for topic in GROWTH_TOPICS]
+            *[loop.run_in_executor(None, query_10k, ticker, topic, 2) for topic in GROWTH_TOPICS]
         ),
     )
 
-    # Unir chunks eliminando duplicados y truncando cada uno a 600 caracteres
+    # Unir chunks eliminando duplicados y truncando cada uno a 300 caracteres
+    # Cap por sección para no superar el límite de tokens de Groq
+    MAX_PER_SECTION = 6
     seen = set()
     unique_chunks = []  # list of (chunk_index, text, section)
 
     for chunk_list in general_results:
+        section_count = sum(1 for _, _, s in unique_chunks if s == "general")
+        if section_count >= MAX_PER_SECTION:
+            break
         for item in chunk_list:
-            truncated = item["text"][:600]
+            truncated = item["text"][:300]
             if truncated not in seen:
                 seen.add(truncated)
                 unique_chunks.append((item["chunk_index"], truncated, "general"))
 
     for chunk_list in risk_results:
+        section_count = sum(1 for _, _, s in unique_chunks if s == "risk")
+        if section_count >= MAX_PER_SECTION:
+            break
         for item in chunk_list:
-            truncated = item["text"][:600]
+            truncated = item["text"][:300]
             if truncated not in seen:
                 seen.add(truncated)
                 unique_chunks.append((item["chunk_index"], truncated, "risk"))
 
     for chunk_list in growth_results:
+        section_count = sum(1 for _, _, s in unique_chunks if s == "growth")
+        if section_count >= MAX_PER_SECTION:
+            break
         for item in chunk_list:
-            truncated = item["text"][:600]
+            truncated = item["text"][:300]
             if truncated not in seen:
                 seen.add(truncated)
                 unique_chunks.append((item["chunk_index"], truncated, "growth"))

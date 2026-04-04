@@ -64,7 +64,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={"detail": str(exc)},
-        headers={"Access-Control-Allow-Origin": ALLOWED_ORIGINS[0]},
+        headers={"Access-Control-Allow-Origin": "*"},
     )
 
 @app.post("/chat", response_model=ChatResponse) #Registra el endpoint /chat que es el endpoint principal de la aplicacion. 

@@ -1,18 +1,47 @@
-import chromadb
-from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+import re
+import math
+from collections import Counter
 from pathlib import Path
+import chromadb
+from chromadb import EmbeddingFunction, Documents, Embeddings
 
-# Carpeta donde ChromaDB guarda sus datos en disco
 CHROMA_DIR = Path(__file__).parent.parent / "chroma_db"
+VECTOR_SIZE = 1024
+
+
+class LightweightEmbeddingFunction(EmbeddingFunction):
+    """
+    Embedding function basada en hashing trick + TF.
+    No requiere onnxruntime ni modelos externos.
+    """
+    def name(self) -> str:
+        return "lightweight_hash_tf"
+
+    def __call__(self, input: Documents) -> Embeddings:
+        result = []
+        for doc in input:
+            vec = [0.0] * VECTOR_SIZE
+            tokens = re.findall(r'\b[a-z]{2,}\b', doc.lower())
+            tf = Counter(tokens)
+            total = len(tokens) or 1
+            for term, count in tf.items():
+                idx = hash(term) % VECTOR_SIZE
+                vec[idx] += count / total
+            norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+            result.append([v / norm for v in vec])
+        return result
+
 
 _embedding_fn = None
 _client = None
 
-def _get_embedding_fn():
+
+def _get_embedding_fn() -> LightweightEmbeddingFunction:
     global _embedding_fn
     if _embedding_fn is None:
-        _embedding_fn = DefaultEmbeddingFunction()
+        _embedding_fn = LightweightEmbeddingFunction()
     return _embedding_fn
+
 
 def _get_client():
     global _client
@@ -44,7 +73,6 @@ def ingest_10k(ticker: str, text: str) -> int:
         embedding_function=_get_embedding_fn(),
     )
 
-    # Si ya tiene documentos, no volvemos a ingestar
     if collection.count() > 0:
         return collection.count()
 
@@ -79,4 +107,7 @@ def query_10k(ticker: str, question: str, n_results: int = 5) -> list[dict]:
 
     docs = results["documents"][0]
     metas = results["metadatas"][0]
-    return [{"text": doc, "chunk_index": meta.get("chunk_index", i)} for i, (doc, meta) in enumerate(zip(docs, metas))]
+    return [
+        {"text": doc, "chunk_index": meta.get("chunk_index", i)}
+        for i, (doc, meta) in enumerate(zip(docs, metas))
+    ]
