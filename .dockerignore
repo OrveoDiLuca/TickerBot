@@ -1,0 +1,12 @@
+node_modules
+dist
+src
+public
+.git
+**/__pycache__
+**/*.pyc
+**/.env
+**/venv
+**/.venv
+backend/chroma_db
+backend/sec-edgar-filings

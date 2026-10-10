@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: tickerbot-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: FINNHUB_API_KEY
+        sync: false
+      - key: SEC_EMAIL
+        sync: false
+      - key: SEC_COMPANY_NAME
+        value: TickerBot
+      - key: ALLOWED_ORIGINS
+        sync: false
