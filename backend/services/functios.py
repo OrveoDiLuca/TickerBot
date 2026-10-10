@@ -2,7 +2,19 @@ from groq import AsyncGroq
 import json
 import os
 
-MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+
+
+def llm_opts(max_tokens: int) -> dict:
+    """
+    Parámetros de generación según el modelo. Los modelos actuales de Groq razonan antes
+    de responder y ese razonamiento cuenta en max_tokens (respuestas cortadas / JSON inválido).
+    """
+    if MODEL.startswith("openai/gpt-oss"):
+        return {"max_tokens": max_tokens + 512, "reasoning_effort": "low"}
+    if MODEL.startswith("qwen/"):
+        return {"max_tokens": max_tokens, "reasoning_effort": "none"}
+    return {"max_tokens": max_tokens}
 
 # Mapeo de aliases comunes (materias primas, índices) a sus tickers ETF
 ASSET_ALIASES: dict[str, str] = {
@@ -59,6 +71,15 @@ RISK_TOPICS = [
     "share buyback repurchase program treasury stock equity reduction stockholders deficit",
 ]
 
+def trim_history(history: list[dict], max_msgs: int = 6, max_chars: int = 1500) -> list[dict]:
+    """Últimos mensajes del historial, recortados, para no superar el límite de tokens/minuto de Groq."""
+    return [
+        {"role": m["role"], "content": m["content"][:max_chars]}
+        for m in history[-max_msgs:]
+        if m.get("content")
+    ]
+
+
 def resolve_ticker_alias(query: str) -> str | None:
     """Resuelve aliases de materias primas e índices a sus tickers ETF equivalentes."""
     if query:
@@ -85,7 +106,7 @@ async def extract_ticker(client: AsyncGroq, user_message: str) -> str | None:
             {"role": "user", "content": user_message},
         ],
         temperature=0,
-        max_tokens=30,
+        **llm_opts(30),
         response_format={"type": "json_object"},
     )
     try:
@@ -121,7 +142,7 @@ async def generate_reply(client: AsyncGroq, user_message: str, ticker: str, quot
             {"role": "user", "content": "Con esos datos, responde al usuario de forma clara y concisa."},
         ],
         temperature=0.3,
-        max_tokens=300,
+        **llm_opts(300),
     )
     return response.choices[0].message.content or ""
 
@@ -143,10 +164,17 @@ async def extract_risk_profile(client: AsyncGroq, history: list[dict]) -> str | 
                     "Sin explicaciones, solo el JSON."
                 )
             },
-            *history
+            {
+                # Solo los mensajes del usuario: el perfil lo dice él, y las respuestas
+                # largas del bot (análisis de miles de caracteres) hacían fallar el JSON.
+                "role": "user",
+                "content": "\n".join(
+                    f"- {m['content'][:500]}" for m in history if m.get("role") == "user"
+                ),
+            },
         ],
         temperature=0,
-        max_tokens=20,
+        **llm_opts(50),
         response_format={"type": "json_object"},
     )
     try:

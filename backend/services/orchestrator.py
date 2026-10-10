@@ -1,6 +1,6 @@
 import os
 from groq import Groq
-from services.functios import MODEL
+from services.functios import MODEL, llm_opts
 from services.agent import data_agent, fundamental_agent, recommendation_agent, ideas_agent
 
 
@@ -29,7 +29,7 @@ def classify_mssg(message: str) -> str:
             },
         ],
         temperature=0,
-        max_tokens=10,
+        **llm_opts(10),
     )
     intent = response.choices[0].message.content.strip().upper()
     valid_intents = ["DATA", "FUNDAMENTAL", "RECOMMENDATION", "IDEAS"]

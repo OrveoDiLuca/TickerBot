@@ -6,7 +6,7 @@ from .finnhub import get_stock_quote, get_company_profile, get_stock_candles, ge
 from .sec import get_10k_text, get_10k_accession
 from .vector_store import ingest_10k, query_10k
 from .yfinance_service import get_fundamentals
-from .functios import resolve_ticker_alias, extract_ticker, extract_risk_profile, generate_reply, ASSET_ALIASES, MODEL, QUALITATIVE_TOPICS, RISK_TOPICS, GROWTH_TOPICS
+from .functios import resolve_ticker_alias, extract_ticker, extract_risk_profile, generate_reply, trim_history, ASSET_ALIASES, MODEL, llm_opts, QUALITATIVE_TOPICS, RISK_TOPICS, GROWTH_TOPICS
 
 
 async def data_agent(user_message: str) -> dict:
@@ -277,7 +277,7 @@ async def fundamental_agent(user_message: str) -> dict:
             {"role": "user", "content": user_message},
         ],
         temperature=0.2, #Le dice al agente que tan determinista sea la respuesta al usuario. 
-        max_tokens=2500,
+        **llm_opts(2500),
     )
     reply = response.choices[0].message.content or ""
 
@@ -410,13 +410,13 @@ async def recommendation_agent(user_message: str, history: list[dict] | None = N
                 "Sé directo y específico. No uses frases genéricas."  
             ),
         },
-        *history, 
+        *trim_history(history),
         {
             "role": "user",
             "content": f"Datos actuales de {ticker}:\n{data_context}\n\nPregunta del usuario: {user_message}"
         }], 
         temperature = 0.3,
-        max_tokens = 1000,
+        **llm_opts(1000),
     )
     reply = response.choices[0].message.content or ""
 
@@ -503,11 +503,11 @@ async def ideas_agent(user_message: str, history: list[dict] | None = None) -> d
                     "Sé específico, no uses frases genéricas."
                 )
             },
-            *history,
+            *trim_history(history),
             {"role": "user", "content": user_message}
         ],
         temperature=0.4,
-        max_tokens=1800,
+        **llm_opts(1800),
     )
     reply = response.choices[0].message.content or ""
 
