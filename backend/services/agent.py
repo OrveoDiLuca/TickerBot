@@ -81,14 +81,15 @@ async def fundamental_agent(user_message: str) -> dict:
     ticker = ticker.upper()
 
     # Paso 3: obtener todas las fuentes en paralelo
-    (text, accession, fundamentals_data), (quote_data, profile_data) = await asyncio.gather(
+    (text, fundamentals_data), (quote_data, profile_data) = await asyncio.gather(
         asyncio.gather(
             loop.run_in_executor(None, get_10k_text, ticker),
-            loop.run_in_executor(None, get_10k_accession, ticker),
             loop.run_in_executor(None, get_fundamentals, ticker),
         ),
         asyncio.gather(get_stock_quote(ticker), get_company_profile(ticker), return_exceptions=True),
     )
+    # Se lee después de get_10k_text para que el 10-K ya esté descargado
+    accession = get_10k_accession(ticker)
 
     if not text:
         is_etf = ticker in {v for v in ASSET_ALIASES.values()}

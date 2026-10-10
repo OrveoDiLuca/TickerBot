@@ -37,7 +37,15 @@ def parse_10k(ticker: str) -> str | None:
         return None
 
     raw = filing_file.read_text(encoding="utf-8", errors="ignore")
+    # full-submission.txt trae el 10-K + todos los anexos y XBRL (20MB+).
+    # Nos quedamos solo con el primer <DOCUMENT> (el 10-K) para no agotar la RAM.
+    end = raw.find("</DOCUMENT>")
+    if end != -1:
+        raw = raw[:end]
+    # Quita el bloque oculto de metadatos XBRL inline
+    raw = re.sub(r"<ix:header>.*?</ix:header>", " ", raw, flags=re.S | re.I)
     soup = BeautifulSoup(raw, "lxml")
+    del raw
 
     for tag in soup(["script", "style", "header", "footer", "nav"]):
         tag.decompose()
