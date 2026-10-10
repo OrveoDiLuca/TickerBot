@@ -1,13 +1,78 @@
+import os
+import httpx
 import yfinance as yf
+
+
+def _finnhub_fallback(ticker: str) -> dict:
+    """
+    Métricas de Finnhub (/stock/metric) con las mismas claves y unidades que yfinance.info.
+    Yahoo suele bloquear t.info desde IPs de servidores (Render), Finnhub no.
+    """
+    try:
+        r = httpx.get(
+            "https://finnhub.io/api/v1/stock/metric",
+            params={"symbol": ticker.upper(), "metric": "all", "token": os.getenv("FINNHUB_API_KEY")},
+            timeout=10,
+        )
+        r.raise_for_status()
+        m = r.json().get("metric") or {}
+    except Exception:
+        return {}
+
+    def pct(key):
+        v = m.get(key)
+        return v / 100 if v is not None else None
+
+    def div(a, b):
+        return a / b if a is not None and b not in (None, 0) else None
+
+    market_cap = m["marketCapitalization"] * 1e6 if m.get("marketCapitalization") else None
+    ev = m["enterpriseValue"] * 1e6 if m.get("enterpriseValue") else None
+    de = m.get("totalDebt/totalEquityQuarterly")
+    equity = div(market_cap, m.get("pbQuarterly"))
+    shares = div(equity, m.get("bookValuePerShareQuarterly"))
+    cash_ps = m.get("cashPerSharePerShareQuarterly")
+
+    return {
+        "totalRevenue": div(ev, m.get("evRevenueTTM")),
+        "revenueGrowth": pct("revenueGrowthTTMYoy"),
+        "earningsGrowth": pct("epsGrowthTTMYoy"),
+        "grossMargins": pct("grossMarginTTM"),
+        "operatingMargins": pct("operatingMarginTTM"),
+        "profitMargins": pct("netProfitMarginTTM"),
+        "returnOnEquity": pct("roeTTM"),
+        "returnOnAssets": pct("roaTTM"),
+        "ebitda": div(ev, m.get("evEbitdaTTM")),
+        "trailingEps": m.get("epsTTM"),
+        "totalDebt": de * equity if de is not None and equity else None,
+        "totalCash": cash_ps * shares if cash_ps is not None and shares else None,
+        "currentRatio": m.get("currentRatioQuarterly"),
+        "freeCashflow": div(ev, m.get("currentEv/freeCashFlowTTM")),
+        "debtToEquity": de * 100 if de is not None else None,  # yfinance lo da en %
+        "trailingPE": m.get("peTTM"),
+        "priceToBook": m.get("pbQuarterly"),
+        "enterpriseToEbitda": m.get("evEbitdaTTM"),
+        "marketCap": market_cap,
+        "enterpriseValue": ev,
+    }
 
 
 def get_fundamentals(ticker: str) -> dict:
     """
     Obtiene métricas financieras estructuradas desde yfinance.
     Fuente autoritativa para todos los números: ingresos, márgenes, ratios, EPS, deuda.
+    Si Yahoo no devuelve métricas, completa los huecos con Finnhub.
     """
     t = yf.Ticker(ticker)
-    info = t.info or {}
+    try:
+        info = dict(t.info or {})
+    except Exception:
+        info = {}
+
+    if info.get("grossMargins") is None or info.get("totalRevenue") is None:
+        for key, value in _finnhub_fallback(ticker).items():
+            if info.get(key) is None and value is not None:
+                info[key] = value
 
     # --- Ingresos y crecimiento ---
     revenue = info.get("totalRevenue")
