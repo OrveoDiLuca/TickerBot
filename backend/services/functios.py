@@ -1,7 +1,8 @@
 from groq import AsyncGroq
 import json
+import os
 
-MODEL = "llama-3.3-70b-versatile"
+MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
 
 # Mapeo de aliases comunes (materias primas, índices) a sus tickers ETF
 ASSET_ALIASES: dict[str, str] = {
